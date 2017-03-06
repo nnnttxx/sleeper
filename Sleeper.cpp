@@ -5,15 +5,14 @@ extern unsigned int i;
 // The interupt vector for the watch dog must be present, even if empty else the CPU resets.
 ISR(WDT_vect) {
 
-  MCUSR = 0x00;         // clear all reset bits
-  WDTCSR = _BV(WDCE) | _BV(WDE);  // start timed sequence
-  WDTCSR = 0x00;        // stop WDT
+  MCUSR = 0x00;     // clear all reset bits
+  wdt_disable();    // stop WDT
 
   i++;
 }
 
 /// Sleeps the arduino for a number of milliseconds
-void Sleeper::SleepMillis(long millis) {
+void Sleeper::SleepMillis(long millisec) {
 
   // OPTIONAL delay to wait for all things to finish, e.g. serial prints - else you may get garbled serial prints from sleeping before the sending has finished.
   //delay(50);
@@ -21,11 +20,11 @@ void Sleeper::SleepMillis(long millis) {
   uint8_t prescalar = 0;
 
   // Sleep for the longest possible watchdog timeout that's less than millis and keep going until there are no millis left.
-  while (millis > Times[NumberOfPrescalars - 1]) {
+  while (millisec > Times[NumberOfPrescalars - 1]) {
     for (int i = 0; i < NumberOfPrescalars; ++i) {
-      if (millis > Times[i]) {
+      if (millisec > Times[i]) {
         prescalar = Prescalars[i];
-        millis -= Times[i];
+        millisec -= Times[i];
         break;
       }
     }
@@ -38,6 +37,14 @@ void Sleeper::SleepMillis(long millis) {
 /// There are many comments / notes in this function which have been copied directly from the data sheet for
 /// user convenience.
 void Sleeper::SetupWatchdog(uint8_t prescalar) {
+
+  // Turn off global interrupt
+  cli();
+
+  // assuming WDT is stopped
+  wdt_reset();      // Note:  The Watchdog Timer should be reset before any change of the WDTCSR.WDP
+  // bits, since a change in the WDTCSR.WDP bits can result in a time-out when switching to
+  // a shorter time-out period.
 
   // Prescalars can be: 0=16ms, 1=32ms, 2=64ms, 3=125ms, 4=250ms, 5=500ms, 6=1sec, 7=2sec, 8=4sec, 9=8sec
   if (prescalar > 9) {
@@ -106,6 +113,9 @@ void Sleeper::SetupWatchdog(uint8_t prescalar) {
 
   // start WDT in Interrupt Mode
   WDTCSR |= _BV(WDIE);
+
+  // Turn on global interrupt
+  sei();
 }
 
 /// Powers down system.
